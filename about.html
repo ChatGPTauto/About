@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>意图型智能，让AI记住你</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-snap-type: y mandatory; overflow-y: scroll; height: 100%; }
+body { height: 100%; font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; background: #0e1c2b; }
+.scr {
+  scroll-snap-align: start; scroll-snap-stop: always;
+  width: 100vw; height: 100vh; min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  position: relative; overflow: hidden;
+  padding: 3rem 2rem; box-sizing: border-box;
+}
+.scr * { box-sizing: border-box; }
+/* left-aligned screens */
+.scr.left { text-align: left; align-items: flex-start; padding: 3.5rem clamp(2rem,8vw,8rem); }
+
+/* S1 */
+#s1 { background: radial-gradient(ellipse 70% 55% at 50% 40%, rgba(13,110,110,.22) 0%, transparent 70%), linear-gradient(160deg,#0e1c2b 0%,#132535 50%,#0a1520 100%); }
+#s1::before { content:''; position:absolute; inset:0; background-image: linear-gradient(rgba(13,110,110,.07) 1px,transparent 1px), linear-gradient(90deg,rgba(13,110,110,.07) 1px,transparent 1px); background-size:52px 52px; pointer-events:none; }
+#s1::after  { content:''; position:absolute; top:0; left:10%; right:10%; height:2px; background:linear-gradient(90deg,transparent,#B8860B,transparent); }
+/* S2 */
+#s2 { background:#F8F6F1; }
+/* S3 */
+#s3 { background:#132535; background-image: linear-gradient(rgba(13,110,110,.07) 1px,transparent 1px), linear-gradient(90deg,rgba(13,110,110,.07) 1px,transparent 1px); background-size:52px 52px; }
+/* S4 */
+#s4 { background:#F8F6F1; }
+/* S5 */
+#s5 { background:#FFFFFF; }
+/* S6 */
+#s6 { background:#0e1c2b; background-image: radial-gradient(circle at 15% 50%,rgba(13,110,110,.1) 0%,transparent 50%), radial-gradient(circle at 85% 20%,rgba(184,134,11,.06) 0%,transparent 45%); }
+/* S7 */
+#s7 { background:#F8F6F1; }
+/* S8 — centre everything */
+#s8 { background:#1A2E4A; align-items:center; justify-content:center; text-align:center; }
+#s8::before { content:''; position:absolute; top:0; left:50%; transform:translateX(-50%); width:1px; height:50px; background:linear-gradient(#B8860B,transparent); }
+#s8::after  { content:''; position:absolute; bottom:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(13,110,110,.4),transparent); }
+
+/* grids */
+.g2  { display:grid; grid-template-columns:1fr 1fr; gap:1px; width:100%; background:rgba(255,255,255,.06); }
+.g3  { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; width:100%; }
+.g4  { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:1rem; width:100%; }
+.g22 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; width:100%; }
+.g3evp { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px; width:100%; background:rgba(255,255,255,.05); }
+
+/* fixed UI */
+.dots { position:fixed; right:1.6rem; top:50%; transform:translateY(-50%); z-index:9999; display:flex; flex-direction:column; gap:9px; }
+.dot  { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.18); cursor:pointer; border:1px solid rgba(255,255,255,.12); transition:background .3s,transform .3s; }
+.dot.on { background:#d4a017; transform:scale(1.5); }
+.prog { position:fixed; top:0; left:0; height:2px; background:linear-gradient(90deg,#0D6E6E,#B8860B); z-index:9999; transition:width .3s; }
+.pnum { position:fixed; left:1.6rem; bottom:1.6rem; font-size:.65rem; letter-spacing:.16em; color:rgba(255,255,255,.18); z-index:9999; }
+.hint { position:absolute; bottom:1.6rem; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:5px; font-size:.6rem; letter-spacing:.18em; color:rgba(255,255,255,.18); animation:bob 2s infinite; }
+.hint::before { content:''; width:1px; height:26px; background:linear-gradient(#B8860B,transparent); }
+
+/* animations */
+@keyframes bob { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(5px)} }
+@keyframes fu  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+.fi  { animation:fu .6s both; }
+.fi2 { animation:fu .6s .15s both; }
+.fi3 { animation:fu .6s .28s both; }
+.fi4 { animation:fu .6s .40s both; }
+
+/* responsive */
+@media(max-width:700px){
+  .g3,.g4 { grid-template-columns:1fr 1fr !important; }
+  .g3evp  { grid-template-columns:1fr !important; }
+  .g22    { grid-template-columns:1fr !important; }
+  .dots   { display:none; }
+  .scr.left { padding:3rem 1.4rem; }
+}
+@media(max-width:480px){
+  .g2,.g3,.g4 { grid-template-columns:1fr !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="prog" id="prog"></div>
+<div class="pnum" id="pnum">01 / 08</div>
+<nav class="dots" id="dots"></nav>
+
+<!-- ═══ S1 HERO ══════════════════════════════════════════ -->
+<section class="scr" id="s1">
+  <div style="position:relative;z-index:1;max-width:700px;width:100%;display:flex;flex-direction:column;align-items:center;">
+    <p class="fi" style="font-size:.7rem;letter-spacing:.26em;text-transform:uppercase;color:#0f8a8a;margin-bottom:1.6rem;">杭州意图型智能科技有限公司</p>
+    <h1 class="fi2" style="font-family:'Noto Serif SC','Songti SC',Georgia,serif;font-size:clamp(2.4rem,7vw,4.2rem);font-weight:700;color:#fff;line-height:1.18;margin-bottom:.3rem;">意图型智能</h1>
+    <h1 class="fi2" style="font-family:'Noto Serif SC','Songti SC',Georgia,serif;font-size:clamp(2.4rem,7vw,4.2rem);font-weight:700;color:#d4a017;line-height:1.18;margin-bottom:1.4rem;">让 AI 记住你</h1>
+    <p class="fi3" style="font-style:italic;color:rgba(255,255,255,.38);font-size:clamp(.88rem,1.6vw,1.05rem);margin-bottom:1.8rem;">信任即基石，意图即原点</p>
+    <div class="fi3" style="border-top:1px solid rgba(184,134,11,.5);border-bottom:1px solid rgba(184,134,11,.5);padding:.85rem 2.2rem;font-family:'Noto Serif SC',serif;font-size:clamp(.88rem,1.5vw,1.06rem);font-weight:600;color:#d4a017;letter-spacing:.08em;margin-bottom:1.8rem;">笃行深耕，诚信致远　·　智构信任，意图恒长</div>
+    <p class="fi4" style="font-style:italic;color:rgba(255,255,255,.32);font-size:clamp(.78rem,1.3vw,.9rem);line-height:1.9;text-align:center;">
+      <strong style="color:rgba(255,255,255,.6);font-style:normal;">我们不在这场流量竞赛中领跑，</strong><br>我们要在信任的维度上扎根。
+    </p>
+  </div>
+  <div style="position:absolute;bottom:3rem;display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center;">
+    <span style="font-size:.62rem;letter-spacing:.12em;color:rgba(255,255,255,.18);border:1px solid rgba(13,110,110,.22);padding:.18rem .75rem;border-radius:20px;">GEO 生成式引擎优化</span>
+    <span style="font-size:.62rem;letter-spacing:.12em;color:rgba(255,255,255,.18);border:1px solid rgba(13,110,110,.22);padding:.18rem .75rem;border-radius:20px;">STGP 系统信任增长范式</span>
+    <span style="font-size:.62rem;letter-spacing:.12em;color:rgba(255,255,255,.18);border:1px solid rgba(13,110,110,.22);padding:.18rem .75rem;border-radius:20px;">OpenClaw · Moltbot</span>
+  </div>
+  <div class="hint">向下滚动</div>
+</section>
+
+<!-- ═══ S2 定位 ═══════════════════════════════════════════ -->
+<section class="scr left" id="s2">
+  <div style="max-width:860px;width:100%;">
+    <p class="fi" style="font-size:.68rem;letter-spacing:.24em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.8rem;">一、企业定位</p>
+    <h2 class="fi2" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.7rem,4vw,2.5rem);font-weight:700;color:#1A2E4A;line-height:1.25;margin-bottom:.5rem;">AI时代的信任架构师</h2>
+    <div class="fi2" style="width:40px;height:2px;background:#B8860B;margin:.7rem 0 1.2rem;"></div>
+    <p class="fi3" style="font-size:clamp(.84rem,1.4vw,.96rem);line-height:1.9;color:#4A5568;max-width:640px;">我们专注于「意图型智能」的深耕与实践。区别于传统的流量博弈，我们运用 <strong>GEO（生成式引擎优化）</strong>与<strong>STGP（系统信任增长范式）</strong>，致力于构建数字时代的核心资产——<strong>信任</strong>。<br><br>我们不制造焦虑，只提供确定性；我们不做流量的投机者，只做价值的建设者。</p>
+    <div class="fi4" style="border-left:4px solid #B8860B;padding:1.1rem 1.5rem;background:#fff;box-shadow:0 2px 20px rgba(26,46,74,.07);margin-top:1.5rem;max-width:580px;">
+      <p style="font-family:'Noto Serif SC',serif;font-style:italic;font-size:clamp(.88rem,1.5vw,1rem);color:#2C3E50;line-height:1.8;">我们剥离流量的表象，回归商业的第一性原理：<br><strong>信任即基石，意图即原点。</strong></p>
+      <cite style="display:block;margin-top:.5rem;font-size:.7rem;letter-spacing:.1em;color:#0D6E6E;font-style:normal;">— 第一性原理</cite>
+    </div>
+    <div class="fi4" style="margin-top:1.1rem;font-family:'Noto Serif SC',serif;font-style:italic;font-size:clamp(.86rem,1.4vw,.98rem);color:#1A2E4A;opacity:.65;border-left:4px solid #0D6E6E;padding:.75rem 1.1rem;background:rgba(13,110,110,.04);max-width:580px;">我们不在这场流量竞赛中领跑，我们要在信任的维度上扎根。</div>
+  </div>
+</section>
+
+<!-- ═══ S3 价值观 ══════════════════════════════════════════ -->
+<section class="scr left" id="s3">
+  <div style="max-width:900px;width:100%;">
+    <p class="fi" style="font-size:.68rem;letter-spacing:.24em;text-transform:uppercase;color:#0f8a8a;margin-bottom:.8rem;">四、核心价值观</p>
+    <h2 class="fi2" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.5rem,3.5vw,2.1rem);font-weight:700;color:#fff;margin-bottom:.4rem;">四大支柱</h2>
+    <div class="fi2" style="width:40px;height:2px;background:#B8860B;margin:.6rem 0 1.1rem;"></div>
+    <div class="g2 fi3">
+      <div style="background:rgba(14,28,43,.85);padding:1.4rem 1.5rem;">
+        <div style="font-family:'Noto Serif SC',serif;font-size:1.7rem;font-weight:700;color:rgba(13,110,110,.2);line-height:1;margin-bottom:.3rem;">01</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.9rem,1.3vw,1.02rem);font-weight:700;color:#fff;margin-bottom:.35rem;">坚韧致远</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.45);line-height:1.7;">以「笃行」致敬匠心，以「深耕」对抗浮躁，做AI时代的数字手艺人。百折不挠、长期主义、诚信为本。</div>
+        <span style="display:inline-block;margin-top:.6rem;font-size:.58rem;letter-spacing:.12em;color:#0f8a8a;border:1px solid rgba(13,110,110,.3);padding:.1rem .5rem;border-radius:20px;">笃行 · 长期 · 诚信</span>
+      </div>
+      <div style="background:rgba(14,28,43,.85);padding:1.4rem 1.5rem;">
+        <div style="font-family:'Noto Serif SC',serif;font-size:1.7rem;font-weight:700;color:rgba(13,110,110,.2);line-height:1;margin-bottom:.3rem;">02</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.9rem,1.3vw,1.02rem);font-weight:700;color:#fff;margin-bottom:.35rem;">智构系统信任</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.45);line-height:1.7;">依托STGP增长范式，将零散品牌信息转化为系统化的 trust assets，让信任成为可规模化构建的数字护城河。</div>
+        <span style="display:inline-block;margin-top:.6rem;font-size:.58rem;letter-spacing:.12em;color:#0f8a8a;border:1px solid rgba(13,110,110,.3);padding:.1rem .5rem;border-radius:20px;">GEO · STGP · Trust Assets</span>
+      </div>
+      <div style="background:rgba(14,28,43,.85);padding:1.4rem 1.5rem;">
+        <div style="font-family:'Noto Serif SC',serif;font-size:1.7rem;font-weight:700;color:rgba(13,110,110,.2);line-height:1;margin-bottom:.3rem;">03</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.9rem,1.3vw,1.02rem);font-weight:700;color:#fff;margin-bottom:.35rem;">意图驱动增长</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.45);line-height:1.7;">穿透「关键词」的表象，洞察用户的真实「意图」。服务的不是冰冷的流量，而是鲜活的需求与期望。</div>
+        <span style="display:inline-block;margin-top:.6rem;font-size:.58rem;letter-spacing:.12em;color:#0f8a8a;border:1px solid rgba(13,110,110,.3);padding:.1rem .5rem;border-radius:20px;">洞察本质 · 价值导向 · 复利</span>
+      </div>
+      <div style="background:rgba(14,28,43,.85);padding:1.4rem 1.5rem;">
+        <div style="font-family:'Noto Serif SC',serif;font-size:1.7rem;font-weight:700;color:rgba(13,110,110,.2);line-height:1;margin-bottom:.3rem;">04</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.9rem,1.3vw,1.02rem);font-weight:700;color:#fff;margin-bottom:.35rem;">笃行深耕致远</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.45);line-height:1.7;">崇尚实干，持续精进。深入客户业务场景，做长期伙伴而非一次性供应商，稳步走在趋势前沿。</div>
+        <span style="display:inline-block;margin-top:.6rem;font-size:.58rem;letter-spacing:.12em;color:#0f8a8a;border:1px solid rgba(13,110,110,.3);padding:.1rem .5rem;border-radius:20px;">专业务实 · 客户共生 · 持续进化</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ S4 方法论 ══════════════════════════════════════════ -->
+<section class="scr left" id="s4">
+  <div style="max-width:900px;width:100%;">
+    <p class="fi" style="font-size:.68rem;letter-spacing:.24em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.8rem;">技术方法论</p>
+    <h2 class="fi2" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.5rem,3.5vw,2.1rem);font-weight:700;color:#1A2E4A;margin-bottom:.4rem;">GEO · STGP　我们的护城河</h2>
+    <div class="fi2" style="width:40px;height:2px;background:#B8860B;margin:.6rem 0 1rem;"></div>
+    <div class="fi3" style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.1rem;">
+      <span style="font-size:.7rem;padding:.28rem .85rem;border-radius:100px;background:#0D6E6E;color:#fff;font-weight:500;">GEO 生成式引擎优化</span>
+      <span style="font-size:.7rem;padding:.28rem .85rem;border-radius:100px;background:#B8860B;color:#fff;font-weight:500;">STGP 系统信任增长范式</span>
+      <span style="font-size:.7rem;padding:.28rem .85rem;border-radius:100px;background:#1A2E4A;color:#fff;font-weight:500;">OpenClaw AI Agent</span>
+      <span style="font-size:.7rem;padding:.28rem .85rem;border-radius:100px;background:#1A2E4A;color:#fff;font-weight:500;">Moltbot</span>
+    </div>
+    <div class="g3 fi4">
+      <div style="border:1px solid #D0D8E4;padding:1.3rem;background:#fff;">
+        <div style="font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.35rem;">核心方法</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.4rem;line-height:1.3;">GEO 生成式引擎优化</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:1.7;">让品牌内容被大模型理解、引用和推荐。在AI重塑搜索入口的时代，被智能引擎记住才是真正的数字存在。</div>
+      </div>
+      <div style="border:1px solid #D0D8E4;padding:1.3rem;background:#fff;">
+        <div style="font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.35rem;">增长范式</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.4rem;line-height:1.3;">STGP 系统信任增长范式</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:1.7;">将零散品牌信息转化为系统化的 trust assets。从数据、知识图谱到内容、交互，构建完整信任体系。</div>
+      </div>
+      <div style="border:1px solid #D0D8E4;padding:1.3rem;background:#fff;">
+        <div style="font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.35rem;">内容标准</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.4rem;line-height:1.3;">数据净化　优质知识颗粒</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:1.7;">拒绝低质灌水。每条输出必须可被AI索引、能为用户解惑，用内容质量赚取AI引擎的长期信任票。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ S5 准则 ════════════════════════════════════════════ -->
+<section class="scr left" id="s5">
+  <div style="max-width:920px;width:100%;">
+    <p class="fi" style="font-size:.68rem;letter-spacing:.24em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.8rem;">五、企业行为准则</p>
+    <h2 class="fi2" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.5rem,3.5vw,2.1rem);font-weight:700;color:#1A2E4A;margin-bottom:.4rem;">我们如何行动</h2>
+    <div class="fi2" style="width:40px;height:2px;background:#B8860B;margin:.6rem 0 1.3rem;"></div>
+    <div class="g4 fi3">
+      <div style="padding:1.3rem;border-top:3px solid #D0D8E4;">
+        <div style="font-size:1.2rem;margin-bottom:.5rem;">🤝</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.5rem;">对待客户</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:2.1;">· 成就客户<br>· 诚信服务<br>· 长期陪伴</div>
+      </div>
+      <div style="padding:1.3rem;border-top:3px solid #D0D8E4;">
+        <div style="font-size:1.2rem;margin-bottom:.5rem;">⚙️</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.5rem;">对待工作</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:2.1;">· 结果说话<br>· 系统构建<br>· 持续学习</div>
+      </div>
+      <div style="padding:1.3rem;border-top:3px solid #D0D8E4;">
+        <div style="font-size:1.2rem;margin-bottom:.5rem;">✍️</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.5rem;">对待内容</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:2.1;">· 拒绝低质灌水<br>· 结构化表达<br>· 知识沉淀</div>
+      </div>
+      <div style="padding:1.3rem;border-top:3px solid #D0D8E4;">
+        <div style="font-size:1.2rem;margin-bottom:.5rem;">💡</div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.86rem,1.2vw,.98rem);font-weight:700;color:#1A2E4A;margin-bottom:.5rem;">对待同事</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:#718096;line-height:2.1;">· 坦诚沟通<br>· 相互成就<br>· 尊重专业</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ S6 员工价值主张 ════════════════════════════════════ -->
+<section class="scr left" id="s6">
+  <div style="max-width:900px;width:100%;">
+    <p class="fi" style="font-size:.68rem;letter-spacing:.24em;text-transform:uppercase;color:#0f8a8a;margin-bottom:.8rem;">六、员工价值主张</p>
+    <h2 class="fi2" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.4rem,3.5vw,2rem);font-weight:700;color:#fff;margin-bottom:.4rem;">我们给每一位同行者的承诺</h2>
+    <div class="fi2" style="width:40px;height:2px;background:#B8860B;margin:.6rem 0 1.1rem;"></div>
+    <div class="g3evp fi3">
+      <div style="padding:1.5rem 1.3rem;background:rgba(14,28,43,.7);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#d4a017;margin-bottom:.6rem;"></div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.88rem,1.2vw,1rem);font-weight:700;color:#fff;margin-bottom:.2rem;">成长共生</div>
+        <div style="font-size:.68rem;color:#0f8a8a;margin-bottom:.75rem;">你的深耕，我们来放大</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.42);line-height:1.9;">— 真实的舞台，判断被尊重<br>— STGP系统支撑，不从零出发<br>— 贡献与成长论价值，非资历</div>
+      </div>
+      <div style="padding:1.5rem 1.3rem;background:rgba(14,28,43,.7);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#0f8a8a;margin-bottom:.6rem;"></div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.88rem,1.2vw,1rem);font-weight:700;color:#fff;margin-bottom:.2rem;">诚信对等</div>
+        <div style="font-size:.68rem;color:#0f8a8a;margin-bottom:.75rem;">我们对你，如同你对客户</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.42);line-height:1.9;">— 透明信息，不盲目执行<br>— 说到做到，承诺必兑现<br>— 每次高质量交付都被看见</div>
+      </div>
+      <div style="padding:1.5rem 1.3rem;background:rgba(14,28,43,.7);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#0D6E6E;margin-bottom:.6rem;"></div>
+        <div style="font-family:'Noto Serif SC',serif;font-size:clamp(.88rem,1.2vw,1rem);font-weight:700;color:#fff;margin-bottom:.2rem;">长期共赢</div>
+        <div style="font-size:.68rem;color:#0f8a8a;margin-bottom:.75rem;">你的复利，也是公司的复利</div>
+        <div style="font-size:clamp(.7rem,1vw,.8rem);color:rgba(255,255,255,.42);line-height:1.9;">— 增长红利与同行者共享<br>— 不惩罚理性探索与失败<br>— 尊重每个人的职业节奏</div>
+      </div>
+    </div>
+    <div class="fi4" style="margin-top:1.5rem;width:100%;text-align:center;">
+      <p style="font-family:'Noto Serif SC',serif;font-style:italic;font-size:clamp(.84rem,1.3vw,.96rem);color:rgba(255,255,255,.38);">在AI技术前沿，做难而正确的事。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ S7 口号 ════════════════════════════════════════════ -->
+<section class="scr" id="s7">
+  <div style="max-width:680px;width:100%;display:flex;flex-direction:column;align-items:center;">
+    <p class="fi" style="font-size:.68rem;letter-spacing:.24em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.8rem;">七、企业口号</p>
+    <h2 class="fi2" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.4rem,3vw,1.9rem);font-weight:700;color:#1A2E4A;margin-bottom:.4rem;">我们的声音</h2>
+    <div class="fi2" style="width:40px;height:2px;background:#B8860B;margin:.6rem 0 1rem;"></div>
+    <div class="fi3" style="border-top:2px solid #B8860B;border-bottom:2px solid #B8860B;padding:1.1rem 2rem;font-family:'Noto Serif SC',serif;font-size:clamp(1.2rem,2.5vw,1.7rem);font-weight:700;color:#1A2E4A;line-height:1.6;text-align:center;margin-bottom:1.4rem;">笃行深耕，诚信致远<br>智构信任，意图恒长</div>
+    <div class="g22 fi4" style="width:100%;">
+      <div style="padding:1rem 1.1rem;background:#fff;border-left:3px solid #0D6E6E;">
+        <div style="font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.3rem;">对外传播</div>
+        <div style="font-size:clamp(.78rem,1.2vw,.9rem);color:#2C3E50;line-height:1.7;">意图型智能，让信任成为增长的持续动力。</div>
+      </div>
+      <div style="padding:1rem 1.1rem;background:#fff;border-left:3px solid #0D6E6E;">
+        <div style="font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#0D6E6E;margin-bottom:.3rem;">行业定位</div>
+        <div style="font-size:clamp(.78rem,1.2vw,.9rem);color:#2C3E50;line-height:1.7;">告别流量投机，开启GEO·STGP复利增长新范式。</div>
+      </div>
+      <div style="padding:1rem 1.1rem;background:#fff;border-left:3px solid #B8860B;">
+        <div style="font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#B8860B;margin-bottom:.3rem;">技术主张</div>
+        <div style="font-size:clamp(.78rem,1.2vw,.9rem);color:#2C3E50;line-height:1.7;">用AI构建系统信任，让品牌在智能时代稳健发声。</div>
+      </div>
+      <div style="padding:1rem 1.1rem;background:#fff;border-left:3px solid #1A2E4A;">
+        <div style="font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#1A2E4A;margin-bottom:.3rem;">人才招募</div>
+        <div style="font-size:clamp(.78rem,1.2vw,.9rem);color:#2C3E50;line-height:1.7;">在AI技术前沿，做难而正确的事。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ S8 落款 ════════════════════════════════════════════ -->
+<section class="scr" id="s8">
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;max-width:600px;width:100%;">
+    <p class="fi" style="font-family:'Noto Serif SC',serif;font-size:clamp(1.5rem,3vw,2rem);font-weight:700;color:#fff;margin-bottom:.8rem;">不逐流，不盲从。</p>
+    <p class="fi2" style="font-family:'Noto Serif SC',serif;font-style:italic;font-size:clamp(1rem,2vw,1.28rem);color:#d4a017;line-height:1.85;text-align:center;">我们负责让 AI 记住您的意图，<br>您负责让世界记住您的价值。</p>
+    <div class="fi3" style="margin-top:2.6rem;font-size:.78rem;color:rgba(255,255,255,.26);letter-spacing:.1em;line-height:2.2;text-align:center;">
+      <strong style="color:rgba(255,255,255,.52);font-weight:500;">杭州意图型智能科技有限公司</strong><br>
+      OpenClaw · Moltbot AI Agent　|　GEO · STGP 数字营销方法论
+    </div>
+    <div class="fi4" style="margin-top:1.2rem;font-family:'Noto Serif SC',serif;font-size:clamp(.9rem,1.5vw,1.05rem);font-weight:700;color:#fff;letter-spacing:.06em;">意图型智能，让AI记住你</div>
+  </div>
+</section>
+
+<script>
+(function(){
+  var scrs = document.querySelectorAll('.scr');
+  var total = scrs.length;
+  var dotsEl = document.getElementById('dots');
+  var progEl = document.getElementById('prog');
+  var numEl  = document.getElementById('pnum');
+
+  scrs.forEach(function(_,i){
+    var d = document.createElement('div');
+    d.className = 'dot'+(i===0?' on':'');
+    d.addEventListener('click',function(){ scrs[i].scrollIntoView({behavior:'smooth'}); });
+    dotsEl.appendChild(d);
+  });
+
+  scrs.forEach(function(s){
+    s.querySelectorAll('.fi,.fi2,.fi3,.fi4').forEach(function(el){
+      el.style.animationPlayState='paused';
+    });
+  });
+  scrs[0].querySelectorAll('.fi,.fi2,.fi3,.fi4').forEach(function(el){
+    el.style.animationPlayState='running';
+  });
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var idx = Array.from(scrs).indexOf(e.target);
+      document.querySelectorAll('.dot').forEach(function(d,i){ d.classList.toggle('on',i===idx); });
+      progEl.style.width=((idx+1)/total*100)+'%';
+      numEl.textContent=String(idx+1).padStart(2,'0')+' / '+String(total).padStart(2,'0');
+      e.target.querySelectorAll('.fi,.fi2,.fi3,.fi4').forEach(function(el){
+        el.style.animationPlayState='running';
+      });
+    });
+  },{threshold:0.5});
+
+  scrs.forEach(function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>
